@@ -3,27 +3,7 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import * as path from 'path';
 import { isNullOrUndefined } from 'util';
-
-export class MCUri {
-	public readonly mid: string = "";
-	public readonly name: string = "";
-	public readonly globalPath: string = "";
-	public readonly localPath: string = "";
-	public readonly parts: Array<string> = [];
-
-	constructor(mid: string, localPath: string) {
-		this.mid = mid;
-		this.name = path.basename(localPath);
-		this.localPath = localPath.replace(/\\/gi, '/');
-		this.globalPath = path.join('/', this.mid, this.localPath).replace(/\\/gi, '/');
-	}
-
-	public static getParent(uri: MCUri): MCUri {
-		let parts: Array<string> = uri.localPath.split('/');
-		parts.pop();
-		return new MCUri(uri.mid, parts.join('/') || '/');
-	}
-}
+import {MCUri} from './core';
 
 export enum MCAssetType {
 	UNKNOWN = 0,
@@ -422,85 +402,13 @@ export class MCAsset extends MCAssetContent {
 }
 
 export class MCAPI {
-	private connections: Map<string, any>;
-	private tokens: Map<string, any>;
 	private directoriesCache: Map<string, number>;
-
-	constructor() {
-		this.connections = new Map<string, any>();
-		this.tokens = new Map<string, any>();
+	private connections: any;
+	constructor(connections:any ) {
 		this.directoriesCache = new Map<string, number>();
+		this.connections = connections;
 	}
 
-	setConnections(connections: Array<any>) {
-		connections.forEach(v => {
-
-			if (!v.grant_type) {
-				v.grant_type = "client_credentials";
-			}
-
-			this.connections.set(v.account_id, v);
-		});
-	}
-
-	async getToken(mid: string): Promise<any> {
-
-		if (isNullOrUndefined(mid.match(/^\d+$/g))) {
-			throw new Error("Incorrect MID");
-		}
-
-		let now = new Date().getTime();
-		let connection = this.connections.get(mid);
-		let token = this.tokens.get(mid);
-
-		if (isNullOrUndefined(connection)) {
-			throw new Error("Connection config has not been set");
-		}
-
-		if (!isNullOrUndefined(token) && token.expiration > now) {
-			return token;
-		}
-
-
-		return new Promise((resolve, reject) => {
-			axios({
-				method: 'post',
-				url: connection.authBaseUri + 'v2/token',
-				headers: { 'Content-Type': 'application/json' },
-				data: connection
-			})
-				.then((response) => {
-					token = response.data;
-					token.expiration = now + (token.expires_in - 5) * 1000;
-					this.tokens.set(mid, token);
-					resolve(token);
-				})
-				.catch((error) => {
-					reject('Unable to connect to MC. Check your connection config.');
-				});
-		});
-	}
-
-	async execRestApi(mid: string, config: AxiosRequestConfig): Promise<any> {
-		let token = await this.getToken(mid);
-
-		config.baseURL = token.rest_instance_url;
-
-		config.headers = {
-			'Content-Type': 'application/json',
-			'Authorization': `${token.token_type} ${token.access_token}`
-		};
-
-		return new Promise((resolve, reject) => {
-			axios(config)
-				.then((response) => {
-					resolve(response.data);
-				})
-				.catch((error) => {
-					reject('MC API call failed. Check that your MC installed package has all required permissions.');
-				});
-		});
-	}
 
 	async getDirectoryIdByPath(uri: MCUri): Promise<number> {
 		if (uri.localPath == '/') {
@@ -536,9 +444,70 @@ export class MCAPI {
 			}
 		};
 
-		let data: any = await this.execRestApi(mid, config);
+		let data: any = await this.connections.execRestApi(mid, config);
 
 		return data.items;
+	}
+	async getQueryFolders(mid: string):Promise<Array<any>> {
+		let page: number = 1;
+		const pageSize: number = 50;
+		let moreResults: boolean = false;
+		let results: Array<any> = [];
+		try {
+			do {
+				let config: AxiosRequestConfig = {
+					method: 'get',
+					url: `automation/v1/folders?$filter=categorytype%20eq%20queryactivity&$page=${page}&$pageSize=${pageSize}`
+				}
+				const data: any = await this.connections.execRestApi(mid, config);
+				if (data.items && data.items.length > 0) {
+					results.push(...data.items);
+				}
+			if (results.length != data.count) {
+					moreResults = true;
+					page++;
+				} else {
+					moreResults = false;
+				}
+
+			} while (moreResults)
+		} catch (ex) {
+			console.error(ex);
+		}
+
+		return results;
+		
+	}
+	async getQueries(mid: string): Promise<Array<any>> {
+
+		let page: number = 1;
+		const pageSize: number = 50;
+		let moreResults: boolean = false;
+		let results: Array<any> = [];
+		try {
+			do {
+				let config: AxiosRequestConfig = {
+					method: 'get',
+					url: `automation/v1/queries?$page=${page}&$pageSize=${pageSize}`
+				}
+				const data: any = await this.connections.execRestApi(mid, config);
+				if (data.items && data.items.length > 0) {
+					results.push(...data.items);
+				}
+			if (results.length != data.count) {
+					moreResults = true;
+					page++;
+				} else {
+					moreResults = false;
+				}
+
+			} while (moreResults)
+		} catch (ex) {
+			console.error(ex);
+		}
+
+		return results;
+
 	}
 
 	async getAssetsByDirectoryId(mid: string, directoryId: number): Promise<Array<MCAsset>> {
@@ -588,7 +557,7 @@ export class MCAPI {
 			}
 		};
 
-		let data: any = await this.execRestApi(mid, config);
+		let data: any = await this.connections.execRestApi(mid, config);
 
 		return (data.items as Array<any>).map(v => new MCAsset(v));
 	}
@@ -600,7 +569,7 @@ export class MCAPI {
 			data: asset
 		};
 
-		let data: any = await this.execRestApi(mid, config);
+		let data: any = await this.connections.execRestApi(mid, config);
 
 		return data;
 	}
@@ -611,7 +580,7 @@ export class MCAPI {
 			url: `/asset/v1/content/assets/${assetId}`
 		};
 
-		let data: any = await this.execRestApi(mid, config);
+		let data: any = await this.connections.execRestApi(mid, config);
 
 		return new MCAsset(data);
 	}

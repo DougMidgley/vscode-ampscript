@@ -1,19 +1,22 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MCAPI, MCUri, MCAsset, MCAssetContent, MCAssetPart } from './marketingCloud';
+import {Connections, MCUri} from './libs/core';
+import { MCAPI, MCAsset, MCAssetContent, MCAssetPart } from './libs/asset';
 
 export class MCFS implements vscode.FileSystemProvider {
-	private mc: MCAPI;
+	private asset: MCAPI;
+	private Connections: any;
 	private rootDirectories: [string, vscode.FileType][] = [];
 	private filesCache: Map<string, MCAssetContent> = new Map<string, MCAssetContent>();
 
 	constructor(connections: Array<any>) {
-		this.mc = new MCAPI();
-		this.setConnections(connections);
+		this.Connections = new Connections();
+		this.Connections.setConnections(connections);
+		this.asset = new MCAPI(this.Connections);
 	}
 
 	setConnections(connections: Array<any>) {
-		this.mc.setConnections(connections);
+		this.Connections.setConnections(connections);
 	}
 
 	stat(uri: vscode.Uri): vscode.FileStat {
@@ -48,15 +51,19 @@ export class MCFS implements vscode.FileSystemProvider {
 		let result: [string, vscode.FileType][] = [];
 
 		try {
-			let directoryId = await this.mc.getDirectoryIdByPath(mcUri);
+			let directoryId = await this.asset.getDirectoryIdByPath(mcUri);
 
 			let promises = await Promise.all([
-				this.mc.getSubdirectoriesByDirectoryId(mcUri.mid, directoryId),
-				this.mc.getAssetsByDirectoryId(mcUri.mid, directoryId)
+				this.asset.getSubdirectoriesByDirectoryId(mcUri.mid, directoryId),
+				this.asset.getAssetsByDirectoryId(mcUri.mid, directoryId),
+				this.asset.getQueries(mcUri.mid),
+				this.asset.getQueryFolders(mcUri.mid)
 			]);
 
 			let subsfolders = promises[0] as Array<any>;
 			let assets = promises[1] as Array<MCAssetContent>;
+			let queries = promises[2] as Array<any>;
+			let queryFolders = promises[3] as Array<any>;
 
 			subsfolders.forEach(subfolder => {
 				result.push([subfolder.name as string, vscode.FileType.Directory]);
@@ -143,9 +150,9 @@ export class MCFS implements vscode.FileSystemProvider {
 		file?.setData(content);
 
 		try {
-			let result = await this.mc.updateAsset(mcUri.mid, asset.getRawAsset());
+			let result = await this.asset.updateAsset(mcUri.mid, asset.getRawAsset());
 
-			let savedAsset = await this.mc.getAssetById(mcUri.mid, asset.id);
+			let savedAsset = await this.asset.getAssetById(mcUri.mid, asset.id);
 
 			asset.parts.find(p => p.name == '__raw.readonly.json')?.setContent(
 				savedAsset.parts.find(p => p.name == '__raw.readonly.json')?.getContent() || ''

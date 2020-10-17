@@ -2,7 +2,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-
+import {Connections} from './libs/core';
 import { MCFS } from './fileSystemProvider';
 import { Utils, ConnectionManagerPanel, ConnectionManagerMessage, Connection } from './utils';
 
@@ -13,7 +13,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	console.log('AMPscript extension activated...');
 
 	try {
+		
 		let connections = getConfig('connections');
+		
 
 		const mcfs = new MCFS(connections);
 
