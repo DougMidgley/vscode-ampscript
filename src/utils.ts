@@ -88,3 +88,64 @@ export class Utils {
 		});
 	}
 }
+
+export function getEntityType(uri: MCUri) {
+	let blocked: Array<string> = ['/pom.xml', '/node_modules'];
+
+	if (blocked.includes(uri.localPath.toLowerCase())) {
+		return vscode.FileType.Unknown;
+	}
+
+	if (uri.localPath.startsWith('/.')) {
+		return vscode.FileType.Unknown;
+	}
+
+	if (uri.localPath.endsWith('.amp') || uri.localPath.endsWith('.ampscript')) {
+		return vscode.FileType.File;
+	}
+
+	if (uri.localPath.endsWith('.json')) {
+		return vscode.FileType.File;
+	}
+	if (uri.localPath.endsWith('.sql')) {
+		return vscode.FileType.File;
+	}
+
+	if (uri.localPath == '/' || !uri.localPath.startsWith('/.')) {
+		return vscode.FileType.Directory;
+	}
+
+	return vscode.FileType.Unknown;
+}
+
+export class MCUri {
+	public readonly mid: string;
+	public readonly name: string;
+	public readonly globalPath: string;
+	public readonly localPath: string;
+	public readonly parts: Array<string> = [];
+	public id?: number;
+
+	constructor(mid: string, localPath: string) {
+		this.mid = mid;
+		this.name = path.basename(localPath);
+		this.localPath = localPath.replace(/\\/gi, '/');
+		this.globalPath = path.join('/', this.mid, this.localPath).replace(/\\/gi, '/');
+	}
+
+	public static getParent(uri: MCUri): MCUri {
+		let parts: Array<string> = uri.localPath.split('/');
+		parts.pop();
+		return new MCUri(uri.mid, parts.join('/') || '/');
+	}
+
+	public setId(directoryId: number) {
+		this.id = directoryId;
+
+	}
+}
+export function delay(time: number) {
+	return new Promise((resolve) => {
+		setTimeout(() => resolve(time), time);
+	});
+}

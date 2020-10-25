@@ -1,116 +1,121 @@
 {
-	"name": "ampscript",
-	"displayName": "AMPscript",
-	"description": "Syntax highlighting for AMPscript (Salesforce Marketing Cloud / Exacttarget)",
-	"version": "2.0.2",
-	"publisher": "sergey-agadzhanov",
-	"engines": {
-		"vscode": "^1.32.0"
-	},
-	"categories": [
-		"Programming Languages"
-	],
-	"keywords": [
-		"ampscript",
-		"amp",
-		"salesforce",
-		"marketing cloud",
-		"salesforce marketing cloud",
-		"exacttarget",
-		"sfmc",
-		"mc",
-		"content builder",
-		"mcfs"
-	],
-	"main": "./out/src/extension",
-	"scripts": {
-		"vscode:prepublish": "npm run compile; npm run connectionmanager",
-		"connectionmanager": "cd ./src/connection-manager && npm run build",
-		"compile": "tsc -p ./",
-		"watch": "tsc -watch -p ./"
-	},
-	"activationEvents": [
-		"onCommand:mcfs.open",
-		"onFileSystem:mcfs",
-		"onLanguage:AMPscript"
-	],
-	"contributes": {
-		"languages": [
-			{
-				"id": "AMPscript",
-				"aliases": [
-					"AMPscript",
-					"ampscript"
-				],
-				"extensions": [
-					".amp",
-					".ampscript"
-				],
-				"configuration": "./syntaxes/language-configuration.json"
-			}
-		],
-		"grammars": [
-			{
-				"language": "AMPscript",
-				"scopeName": "source.amp",
-				"path": "./syntaxes/ampscript.tmLanguage.json"
-			}
-		],
-		"snippets": [
-			{
-				"language": "AMPscript",
-				"path": "./syntaxes/snippets.json"
-			}
-		],
-		"commands": [
-			{
-				"command": "mcfs.open",
-				"title": "Connection Manager",
-				"category": "MCFS"
-			}
-		],
-		"configuration": {
-			"title": "MCFS Configuration",
-			"properties": {
-				"mcfs.connections": {
-					"title": "A list of MCFS connections",
-					"description": "Use the Settings UI to edit the list of connectons. Run command 'MCFS: Connect to account'",
-					"markdownDescription": "Use the Settings UI to edit configurations. Run command 'MCFS: Connect to account'",
-					"type": "array",
-					"items": "object",
-					"default": []
-				},
-				"mcfs.notifications": {
-					"title": "Notification paramters",
-					"description": "Use the Settings UI to edit the list of connectons. Run command 'MCFS: Connect to account'",
-					"markdownDescription": "Use the Settings UI to edit configurations. Run command 'MCFS: Connect to account'",
-					"type": "object",
-					"default": {
-						"hasOpenedConnectionManager": false,
-						"hasConnectedToMC": false,
-						"dontShowConnectionManagerAlert": false,
-						"hasShownChangelog": false
-					}
-				}
-			}
-		}
-	},
-	"__metadata": {
-		"id": "47cde916-d321-4431-996b-009c1166cecf",
-		"publisherId": "887b5b26-7dcf-4f99-9675-b1935ffcdc24",
-		"publisherDisplayName": "Agadzhanov Sergey"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/Bizcuit/vscode-ampscript.git"
-	},
-	"icon": "images/logo.png",
-	"devDependencies": {
-		"@types/node": "^7.0.43",
-		"typescript": "^3.5.1",
-		"@types/vscode": "^1.32.0"
-	},
-	"dependencies": {
-		"axios": "^0.19.2"
-	}
+  "name": "ampscript",
+  "displayName": "AMPscript",
+  "description": "Syntax highlighting for AMPscript (Salesforce Marketing Cloud / Exacttarget)",
+  "version": "2.0.2",
+  "publisher": "sergey-agadzhanov",
+  "engines": {
+    "vscode": "^1.32.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "ampscript",
+    "amp",
+    "salesforce",
+    "marketing cloud",
+    "salesforce marketing cloud",
+    "exacttarget",
+    "sfmc",
+    "mc",
+    "content builder",
+    "mcfs"
+  ],
+  "main": "./out/src/extension",
+  "scripts": {
+    "vscode:prepublish": "npm run compile; npm run connectionmanager",
+    "connectionmanager": "cd ./src/connection-manager && npm run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "activationEvents": [
+    "onCommand:mcfs.open",
+    "onFileSystem:mcfs",
+    "onLanguage:AMPscript"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "AMPscript",
+        "aliases": [
+          "AMPscript",
+          "ampscript"
+        ],
+        "extensions": [
+          ".amp",
+          ".ampscript"
+        ],
+        "configuration": "./syntaxes/language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "AMPscript",
+        "scopeName": "source.amp",
+        "path": "./syntaxes/ampscript.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "AMPscript",
+        "path": "./syntaxes/snippets.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mcfs.open",
+        "title": "Connection Manager",
+        "category": "MCFS"
+      },
+      {
+        "command": "mcfs.runquery",
+        "title": "Run Query",
+        "category": "MCFS"
+      }
+    ],
+    "configuration": {
+      "title": "MCFS Configuration",
+      "properties": {
+        "mcfs.connections": {
+          "title": "A list of MCFS connections",
+          "description": "Use the Settings UI to edit the list of connectons. Run command 'MCFS: Connect to account'",
+          "markdownDescription": "Use the Settings UI to edit configurations. Run command 'MCFS: Connect to account'",
+          "type": "array",
+          "items": "object",
+          "default": []
+        },
+        "mcfs.notifications": {
+          "title": "Notification paramters",
+          "description": "Use the Settings UI to edit the list of connectons. Run command 'MCFS: Connect to account'",
+          "markdownDescription": "Use the Settings UI to edit configurations. Run command 'MCFS: Connect to account'",
+          "type": "object",
+          "default": {
+            "hasOpenedConnectionManager": false,
+            "hasConnectedToMC": false,
+            "dontShowConnectionManagerAlert": false,
+            "hasShownChangelog": false
+          }
+        }
+      }
+    }
+  },
+  "__metadata": {
+    "id": "47cde916-d321-4431-996b-009c1166cecf",
+    "publisherId": "887b5b26-7dcf-4f99-9675-b1935ffcdc24",
+    "publisherDisplayName": "Agadzhanov Sergey"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bizcuit/vscode-ampscript.git"
+  },
+  "icon": "images/logo.png",
+  "devDependencies": {
+    "@types/node": "^14.14.3",
+    "typescript": "^4.0.3",
+    "@types/vscode": "^1.50.0"
+  },
+  "dependencies": {
+    "axios": "^0.21.0"
+  }
 }

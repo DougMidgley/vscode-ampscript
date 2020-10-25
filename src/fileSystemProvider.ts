@@ -1,27 +1,27 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
-import {Connections, MCUri} from './libs/core';
-import { MCAPI, MCAsset, MCAssetContent, MCAssetPart } from './libs/asset';
+import { Connections } from './libs/core';
+import { Asset, MCAsset, MCAssetContent, MCAssetPart } from './libs/asset';
+import { Query } from './libs/query';
+import { getEntityType, MCUri } from './utils';
+import { fstat } from 'fs';
 
 export class MCFS implements vscode.FileSystemProvider {
-	private asset: MCAPI;
-	private Connections: any;
+	private asset: Asset;
+	public query: Query;
+	private connections: any;
 	private rootDirectories: [string, vscode.FileType][] = [];
-	private filesCache: Map<string, MCAssetContent> = new Map<string, MCAssetContent>();
 
-	constructor(connections: Array<any>) {
-		this.Connections = new Connections();
-		this.Connections.setConnections(connections);
-		this.asset = new MCAPI(this.Connections);
-	}
 
-	setConnections(connections: Array<any>) {
-		this.Connections.setConnections(connections);
+	constructor(connections: Connections) {
+		this.connections = connections
+		this.asset = new Asset();
+		this.query = new Query();
 	}
 
 	stat(uri: vscode.Uri): vscode.FileStat {
-		let mcUri = new MCUri(uri.authority, uri.path);
-		let type: vscode.FileType = this.getEntityType(mcUri);
+		const type: vscode.FileType = getEntityType(new MCUri(uri.authority, uri.path));
 
 		if (type == vscode.FileType.Unknown) {
 			throw vscode.FileSystemError.FileNotFound();
@@ -36,137 +36,98 @@ export class MCFS implements vscode.FileSystemProvider {
 	}
 
 	async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		let assetPartFiles = this.readAssetAsDirectory(uri);
+		console.log('read directory', uri.path);
+		const results: [string, vscode.FileType][] = [];
 
-		if (assetPartFiles.length > 0) {
-			return assetPartFiles;
+		if (uri.path == '/' || uri.path.startsWith('/Content Builder')) {
+			try {
+				results.push(...(await this.asset.readDirectories(uri, this.connections.get(uri.authority))));
+			} catch (err) {
+				this.showError(`Unable to read directory "${uri.path}"`, err);
+			}
+
 		}
+		if (uri.path == '/' || uri.path.startsWith('/Query')) {
+			try {
+				results.push(...(await this.query.readDirectories(uri, this.connections.get(uri.authority))));
+			} catch (err) {
+				this.showError(`Unable to read directory "${uri.path}"`, err);
+			}
 
-		let mcUri = new MCUri(uri.authority, uri.path);
-
-		if (this.getEntityType(mcUri) != vscode.FileType.Directory) {
-			throw vscode.FileSystemError.FileNotFound();
 		}
+		return results;
 
-		let result: [string, vscode.FileType][] = [];
 
-		try {
-			let directoryId = await this.asset.getDirectoryIdByPath(mcUri);
-
-			let promises = await Promise.all([
-				this.asset.getSubdirectoriesByDirectoryId(mcUri.mid, directoryId),
-				this.asset.getAssetsByDirectoryId(mcUri.mid, directoryId),
-				this.asset.getQueries(mcUri.mid),
-				this.asset.getQueryFolders(mcUri.mid)
-			]);
-
-			let subsfolders = promises[0] as Array<any>;
-			let assets = promises[1] as Array<MCAssetContent>;
-			let queries = promises[2] as Array<any>;
-			let queryFolders = promises[3] as Array<any>;
-
-			subsfolders.forEach(subfolder => {
-				result.push([subfolder.name as string, vscode.FileType.Directory]);
-			});
-
-			assets.forEach(asset => {
-				let name = asset.name;
-				let path = mcUri.globalPath + (mcUri.globalPath.endsWith("/") ? "" : "/") + name;
-
-				this.filesCache.set(path, asset);
-
-				if (asset.hasParts()) {
-					result.push([name, vscode.FileType.Directory]);
-
-					(asset as MCAsset).parts.forEach(part => {
-						this.filesCache.set(path + '/' + part.name, part);
-					});
-				}
-				else {
-					result.push([name, vscode.FileType.File]);
-				}
-			});
-		}
-		catch (err) {
-			this.showError(`Unable to read directory "${mcUri.localPath}"`, err);
-		}
-
-		return result;
 	}
 
-	readAssetAsDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-		let result: [string, vscode.FileType][] = [];
-		let mcUri = new MCUri(uri.authority, uri.path);
-		let asset = this.filesCache.get(mcUri.globalPath);
-
-		if (asset && asset.hasParts() && asset instanceof MCAsset) {
-			(asset as MCAsset).parts.forEach(part => {
-				result.push([part.name, vscode.FileType.File]);
-			});
-		}
-
-		return result;
-	}
 
 	readFile(uri: vscode.Uri): Uint8Array {
-		let mcUri = new MCUri(uri.authority, uri.path);
+		const mcUri = new MCUri(uri.authority, uri.path);
+		let file;
+		if (getEntityType(mcUri) == vscode.FileType.File) {
+			if (mcUri.localPath.startsWith('/Query')) {
 
-		if (this.getEntityType(mcUri) == vscode.FileType.File) {
-
-			let file = this.filesCache.get(mcUri.globalPath);
-
-			if (file) {
-				return file.getData();
+				return this.query.readFile(mcUri.globalPath);
+			} else if (mcUri.localPath.startsWith('/Content Builder')) {
+				file = this.asset.filesCache.get(mcUri.globalPath);
+				if (file) {
+					return file.getData();
+				}
 			}
+
 		}
 
 		throw vscode.FileSystemError.FileNotFound();
 	}
 
-	findAssetToWrite(uri: MCUri): MCAsset {
-		let file = this.filesCache.get(uri.globalPath);
 
-		if (file instanceof MCAssetPart) {
-			return this.findAssetToWrite(MCUri.getParent(uri));
-		}
-
-		if (file instanceof MCAsset) {
-			return (file as MCAsset);
-		}
-
-		throw vscode.FileSystemError.FileNotFound();
-	}
 
 	async writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Promise<any> {
-		let mcUri = new MCUri(uri.authority, uri.path);
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: 'Running Deploy',
+			cancellable: false
+		}, async () => {
+			const mcUri = new MCUri(uri.authority, uri.path);
 
-		if (mcUri.name.indexOf('.readonly.') > 0) {
-			throw vscode.FileSystemError.NoPermissions(uri);
-		}
+			if (mcUri.name.indexOf('.readonly.') > 0) {
+				throw vscode.FileSystemError.NoPermissions(uri);
+			}
+			try {
+				let result;
+				if (mcUri.localPath.startsWith('/Query')) {
+					result = await this.query.writeFile(content, mcUri, this.connections.get(mcUri.mid));
+				} else if (mcUri.localPath.startsWith('/Content Builder')) {
+					result = await this.asset.writeFile(content, mcUri, this.connections.get(mcUri.mid));
+				}
+				if (result) {
+					//force refresh of FS
+					const p = path.dirname(uri.toString()) as unknown as vscode.Uri;
+					this.rename(mcUri.globalPath as unknown as vscode.Uri, result as unknown as vscode.Uri, { overwrite: true });
+					//this.readDirectory(p);
 
-		let asset = this.findAssetToWrite(mcUri);
-		let file = this.filesCache.get(mcUri.globalPath);
+				}
+				this._fireSoon({ type: vscode.FileChangeType.Changed, uri });
+				this.showSuccess('Deployed Successfully : ' + mcUri.name);
+			}
+			catch (err) {
+				this.showError(`Unable to write to file "${mcUri.localPath}"`, err);
+			}
+			return;
+		});
 
-		file?.setData(content);
-
-		try {
-			let result = await this.asset.updateAsset(mcUri.mid, asset.getRawAsset());
-
-			let savedAsset = await this.asset.getAssetById(mcUri.mid, asset.id);
-
-			asset.parts.find(p => p.name == '__raw.readonly.json')?.setContent(
-				savedAsset.parts.find(p => p.name == '__raw.readonly.json')?.getContent() || ''
-			);
-
-			this._fireSoon({ type: vscode.FileChangeType.Changed, uri });
-		}
-		catch (err) {
-			this.showError(`Unable to write to file "${mcUri.localPath}"`, err);
-		}
 	}
 
 	private showError(message: string, err: any) {
-		vscode.window.showErrorMessage(message + ' Error details: ' + err.toString())
+		if (err.detail) {
+			vscode.window.showErrorMessage(message + ':' + err.detail.join(''));
+		} else {
+			vscode.window.showErrorMessage(message + ' Error details: ' + err.message);
+		}
+
+	}
+	private showSuccess(message: string) {
+		vscode.window.showInformationMessage(message);
 	}
 
 
@@ -183,7 +144,7 @@ export class MCFS implements vscode.FileSystemProvider {
 	}
 
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean }): void {
-		throw new Error("Rename not implemented yet");
+		//throw new Error("Rename not implemented yet");
 
 		this._fireSoon(
 			{ type: vscode.FileChangeType.Deleted, uri: oldUri },
@@ -213,31 +174,7 @@ export class MCFS implements vscode.FileSystemProvider {
 		return new vscode.Disposable(() => { });
 	}
 
-	private getEntityType(uri: MCUri) {
-		let blocked: Array<string> = ['/pom.xml', '/node_modules'];
 
-		if (blocked.includes(uri.localPath.toLowerCase())) {
-			return vscode.FileType.Unknown;
-		}
-
-		if (uri.localPath.startsWith('/.')) {
-			return vscode.FileType.Unknown;
-		}
-
-		if (uri.localPath.endsWith('.amp') || uri.localPath.endsWith('.ampscript')) {
-			return vscode.FileType.File;
-		}
-
-		if (uri.localPath.endsWith('.json')) {
-			return vscode.FileType.File;
-		}
-
-		if (uri.localPath == '/' || !uri.localPath.startsWith('/.')) {
-			return vscode.FileType.Directory;
-		}
-
-		return vscode.FileType.Unknown;
-	}
 
 	private _fireSoon(...events: vscode.FileChangeEvent[]): void {
 		this._bufferedEvents.push(...events);
@@ -250,5 +187,13 @@ export class MCFS implements vscode.FileSystemProvider {
 			this._emitter.fire(this._bufferedEvents);
 			this._bufferedEvents.length = 0;
 		}, 5);
+	}
+
+	runQuery(uri: vscode.Uri) {
+
+		let mcUri = new MCUri(uri.authority, uri.path);
+		this.query.runQuery(mcUri, this.connections.get(uri.authority));
+
+
 	}
 }

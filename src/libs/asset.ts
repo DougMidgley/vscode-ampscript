@@ -1,9 +1,11 @@
 'use strict';
 
 import axios, { AxiosRequestConfig } from 'axios';
-import * as path from 'path';
+import * as vscode from 'vscode';
 import { isNullOrUndefined } from 'util';
-import {MCUri} from './core';
+import { Auth } from './core';
+import { Metadata } from './metadata';
+import { getEntityType, MCUri } from '../utils';
 
 export enum MCAssetType {
 	UNKNOWN = 0,
@@ -401,40 +403,13 @@ export class MCAsset extends MCAssetContent {
 	}
 }
 
-export class MCAPI {
-	private directoriesCache: Map<string, number>;
-	private connections: any;
-	constructor(connections:any ) {
-		this.directoriesCache = new Map<string, number>();
-		this.connections = connections;
+export class Asset extends Metadata {
+	public filesCache: Map<string, MCAssetContent> = new Map<string, MCAssetContent>();
+	constructor() {
+		super();
+
 	}
-
-
-	async getDirectoryIdByPath(uri: MCUri): Promise<number> {
-		if (uri.localPath == '/') {
-			return 0;
-		}
-
-		if (!isNullOrUndefined(this.directoriesCache.get(uri.globalPath))) {
-			return this.directoriesCache.get(uri.globalPath) || 0;
-		}
-
-		let parent = MCUri.getParent(uri);
-		let parentDirId = await this.getDirectoryIdByPath(parent);
-
-		let parentSubdirectories = await this.getSubdirectoriesByDirectoryId(uri.mid, parentDirId);
-
-		for (let i = 0; i < parentSubdirectories.length; i++) {
-			if (uri.name == parentSubdirectories[i].name) {
-				this.directoriesCache.set(uri.globalPath, parentSubdirectories[i].id);
-				return parentSubdirectories[i].id;
-			}
-		}
-
-		throw new Error(`Path not found: ${uri.globalPath}`);
-	}
-
-	async getSubdirectoriesByDirectoryId(mid: string, directoryId: number): Promise<Array<any>> {
+	async getSubdirectoriesByDirectoryId(connection: Auth, directoryId: number): Promise<Array<any>> {
 		let config: AxiosRequestConfig = {
 			method: 'get',
 			url: 'asset/v1/content/categories/',
@@ -444,73 +419,12 @@ export class MCAPI {
 			}
 		};
 
-		let data: any = await this.connections.execRestApi(mid, config);
+		let data: any = await connection.restRequest(config);
 
 		return data.items;
 	}
-	async getQueryFolders(mid: string):Promise<Array<any>> {
-		let page: number = 1;
-		const pageSize: number = 50;
-		let moreResults: boolean = false;
-		let results: Array<any> = [];
-		try {
-			do {
-				let config: AxiosRequestConfig = {
-					method: 'get',
-					url: `automation/v1/folders?$filter=categorytype%20eq%20queryactivity&$page=${page}&$pageSize=${pageSize}`
-				}
-				const data: any = await this.connections.execRestApi(mid, config);
-				if (data.items && data.items.length > 0) {
-					results.push(...data.items);
-				}
-			if (results.length != data.count) {
-					moreResults = true;
-					page++;
-				} else {
-					moreResults = false;
-				}
 
-			} while (moreResults)
-		} catch (ex) {
-			console.error(ex);
-		}
-
-		return results;
-		
-	}
-	async getQueries(mid: string): Promise<Array<any>> {
-
-		let page: number = 1;
-		const pageSize: number = 50;
-		let moreResults: boolean = false;
-		let results: Array<any> = [];
-		try {
-			do {
-				let config: AxiosRequestConfig = {
-					method: 'get',
-					url: `automation/v1/queries?$page=${page}&$pageSize=${pageSize}`
-				}
-				const data: any = await this.connections.execRestApi(mid, config);
-				if (data.items && data.items.length > 0) {
-					results.push(...data.items);
-				}
-			if (results.length != data.count) {
-					moreResults = true;
-					page++;
-				} else {
-					moreResults = false;
-				}
-
-			} while (moreResults)
-		} catch (ex) {
-			console.error(ex);
-		}
-
-		return results;
-
-	}
-
-	async getAssetsByDirectoryId(mid: string, directoryId: number): Promise<Array<MCAsset>> {
+	async getMetadataByDirectoryId(connection: Auth, directoryId: number): Promise<Array<MCAsset>> {
 
 		if (directoryId == 0) return [];
 
@@ -557,31 +471,125 @@ export class MCAPI {
 			}
 		};
 
-		let data: any = await this.connections.execRestApi(mid, config);
+		let data: any = await connection.restRequest(config);
 
 		return (data.items as Array<any>).map(v => new MCAsset(v));
 	}
 
-	async updateAsset(mid: string, asset: any): Promise<any> {
+	async updateAsset(connection: Auth, asset: any): Promise<any> {
 		let config: AxiosRequestConfig = {
 			method: 'patch',
 			url: `/asset/v1/content/assets/${asset.id}`,
 			data: asset
 		};
 
-		let data: any = await this.connections.execRestApi(mid, config);
+		let data: any = await connection.restRequest(config);
 
 		return data;
 	}
 
-	async getAssetById(mid: string, assetId: string): Promise<MCAsset> {
+	async getMetadataById(connection: Auth, assetId: string): Promise<MCAsset> {
 		let config: AxiosRequestConfig = {
 			method: 'get',
 			url: `/asset/v1/content/assets/${assetId}`
 		};
 
-		let data: any = await this.connections.execRestApi(mid, config);
+		let data: any = await connection.restRequest(config);
 
 		return new MCAsset(data);
+	}
+
+	readAssetAsDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
+		const mcUri = new MCUri(uri.authority, uri.path);
+		const asset = this.filesCache.get(mcUri.globalPath);
+		if (asset && asset.hasParts() && asset instanceof MCAsset) {
+			return (asset as MCAsset).parts.map(part => [part.name, vscode.FileType.File]);
+		}
+		return [];
+	}
+
+	async readDirectories(uri: vscode.Uri, connection: Auth) {
+		//checking if this is an Asset or Folder
+		let assetPartFiles = this.readAssetAsDirectory(uri);
+
+		if (assetPartFiles.length > 0) {
+			return assetPartFiles;
+		}
+		// else its a folder
+		let mcUri = new MCUri(uri.authority, uri.path);
+
+		if (getEntityType(mcUri) != vscode.FileType.Directory) {
+			throw vscode.FileSystemError.FileNotFound();
+		}
+
+		const result: [string, vscode.FileType][] = [];
+
+
+		let directoryId = await this.getDirectoryIdByPath(connection, mcUri);
+
+		let promises = await Promise.all([
+			this.getSubdirectoriesByDirectoryId(connection, directoryId),
+			this.getMetadataByDirectoryId(connection, directoryId),
+		]);
+
+		let subsfolders = promises[0] as Array<any>;
+		let assets = promises[1] as Array<MCAssetContent>;
+		// add folders to current directory
+		subsfolders.forEach(subfolder => {
+			result.push([subfolder.name as string, vscode.FileType.Directory]);
+		});
+		// add files to current directory
+		assets.forEach(asset => {
+			let name = asset.name;
+			let path = mcUri.globalPath + (mcUri.globalPath.endsWith("/") ? "" : "/") + name;
+
+			this.filesCache.set(path, asset);
+
+			if (asset.hasParts()) {
+				result.push([name, vscode.FileType.Directory]);
+
+				(asset as MCAsset).parts.forEach(part => {
+					this.filesCache.set(path + '/' + part.name, part);
+				});
+			}
+			else {
+				result.push([name, vscode.FileType.File]);
+			}
+		});
+
+
+		return result;
+	}
+
+	findAssetToWrite(uri: MCUri): MCAsset {
+		const file = this.filesCache.get(uri.globalPath);
+
+		if (file instanceof MCAssetPart) {
+			return this.findAssetToWrite(MCUri.getParent(uri));
+		}
+
+		if (file instanceof MCAsset) {
+			return (file as MCAsset);
+		}
+
+		throw vscode.FileSystemError.FileNotFound();
+	}
+
+	async writeFile(content: Uint8Array, mcUri: MCUri, connection: Auth) {
+
+		const asset = this.findAssetToWrite(mcUri);
+		const file = this.filesCache.get(mcUri.globalPath);
+
+		file?.setData(content);
+
+
+		const result = await this.updateAsset(connection, asset.getRawAsset());
+
+		const savedAsset = await this.getMetadataById(connection, asset.id);
+
+		asset.parts.find(p => p.name == '__raw.readonly.json')?.setContent(
+			savedAsset.parts.find(p => p.name == '__raw.readonly.json')?.getContent() || ''
+		);
+
 	}
 };

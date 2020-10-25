@@ -2,9 +2,10 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import {Connections} from './libs/core';
+import { Connections } from './libs/core';
 import { MCFS } from './fileSystemProvider';
 import { Utils, ConnectionManagerPanel, ConnectionManagerMessage, Connection } from './utils';
+import { isNullOrUndefined } from 'util';
 
 let isConfigUpdated = true;
 let isConnectionManagerOpened = false;
@@ -13,10 +14,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	console.log('AMPscript extension activated...');
 
 	try {
-		
-		let connections = getConfig('connections');
-		
 
+		//let connections = getConfig('connections');
+		const connections = new Connections();
+		connections.setConnections(getConfig('connections'));
 		const mcfs = new MCFS(connections);
 
 		const panel = new ConnectionManagerPanel();
@@ -41,8 +42,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						break;
 
 					case 'UPDATE':
-						connections = message.content;
-						mcfs.setConnections(connections);
+						connections.setConnections(message.content);
 						updateConfig('connections', connections);
 						vscode.window.showInformationMessage('Connections saved. Press "Connect" and then open File Explorer');
 						break;
@@ -57,6 +57,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(vscode.commands.registerCommand('mcfs.open', _ => {
 			isConnectionManagerOpened = true;
 			openConnectionManager();
+		}));
+
+		context.subscriptions.push(vscode.commands.registerCommand('mcfs.runquery', _ => {
+			const uri = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document.uri : "";
+
+			if (uri && uri.toString().endsWith('.sql')) {
+				mcfs.runQuery(uri);
+			} else {
+				throw new Error('No current File open OR unsupported filetype')
+			}
+
 		}));
 
 		setTimeout(_ => {
