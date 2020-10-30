@@ -36,12 +36,12 @@ export class Metadata {
 
 	}
 
-	async getSubdirectoriesByDirectoryId(connection: Auth, directoryId: number): Promise<Array<any>> {
+	async getSubdirectoriesByDirectoryId(_: Auth, __: number): Promise<Array<Record<string, unknown>>> {
 		throw new Error(`getSubdirectoriesByDirectoryId not implemented for this type`);
 	}
 
 	private getEntityType(uri: MCUri) {
-		let blocked: Array<string> = ['/pom.xml', '/node_modules'];
+		const blocked: Array<string> = ['/pom.xml', '/node_modules'];
 
 		if (blocked.includes(uri.localPath.toLowerCase())) {
 			return vscode.FileType.Unknown;

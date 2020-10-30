@@ -1,7 +1,6 @@
 'use strict';
 
 import axios, { AxiosRequestConfig } from 'axios';
-import * as path from 'path';
 import { isNullOrUndefined } from 'util';
 export class APIException {
     public detail: string;
@@ -24,12 +23,12 @@ export class Connections {
         this.connections = new Map<string, any>();
     }
 
-    setConnections(connections: Array<any>) {
+    setConnections(connections: Array<any>): void {
         connections.forEach(v =>
             this.connections.set(v.account_id, new Auth(v.authBaseUri, v.account_id, v.client_id, v.client_secret))
         );
     }
-    get(account_id: string) {
+    get(account_id: string): Auth {
         if ((account_id.match(/^\d+$/g) === undefined || account_id.match(/^\d+$/g) === null)) {
             throw new Error("Incorrect MID");
         } else if (this.connections.get(account_id) === null) {
@@ -43,11 +42,9 @@ export class Connections {
 
 export class Auth {
     private readonly authBaseUri: string;
-    private readonly authObj: object = {};
+    private readonly authObj: Record<string, unknown> = {};
     private token?: Token;
     private expires?: Date;
-
-
     constructor(authBaseUri: string, account_id: number, client_id: string, client_secret: string) {
         this.authBaseUri = authBaseUri;
         this.authObj = { account_id, client_id, client_secret, grant_type: "client_credentials" }
@@ -63,7 +60,7 @@ export class Auth {
         }
         return this.token;
     }
-    async refreshToken() {
+    async refreshToken(): void {
         try {
             const response = await axios({
                 method: 'post',
@@ -81,7 +78,7 @@ export class Auth {
         }
     }
 
-    async restRequest(config: AxiosRequestConfig): Promise<any> {
+    async restRequest(config: AxiosRequestConfig): Promise<Record<string, Unknown>> {
 
         const requestToken: Token = await this.getToken();
         if (isNullOrUndefined(requestToken)) {
@@ -98,7 +95,7 @@ export class Auth {
             return response.data;
         } catch (ex) {
             if (ex.response && ex.response.data && ex.response.data.errors) {
-                throw new APIException('REST API call failed', ex.response.data.errors.map((e: any) => e.message), config.url);
+                throw new APIException('REST API call failed', ex.response.data.errors.map((e: Record<string, unknown>) => e.message), config.url);
             }
             throw new APIException('REST API call failed', ex.message, config.url);
         }

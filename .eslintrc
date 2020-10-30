@@ -1,6 +1,14 @@
 {
-    "extends": ["eslint:recommended", "prettier", "ssjs"],
-    "plugins": ["jsdoc", "prettier"],
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "extends": [
+        "eslint:recommended",
+        "prettier",
+        "ssjs",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended"
+    ],
+    "plugins": ["jsdoc", "prettier", "@typescript-eslint"],
     "rules": {
         "padded-blocks": "off",
         "prefer-rest-params": "off",

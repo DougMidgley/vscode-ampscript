@@ -1,6 +1,6 @@
 'use strict';
 
-import axios, { AxiosRequestConfig } from 'axios';
+import { AxiosRequestConfig } from 'axios';
 import { isNullOrUndefined } from 'util';
 import * as vscode from 'vscode';
 import { Auth } from './core';
@@ -17,7 +17,7 @@ export class Query extends Metadata {
 
     async getSubdirectoriesByDirectoryId(connection: Auth, directoryId: number): Promise<Array<any>> {
 
-        let config: AxiosRequestConfig = {
+        const config: AxiosRequestConfig = {
             method: 'get',
             url: 'automation/v1/folders',
             params: {
@@ -25,7 +25,7 @@ export class Query extends Metadata {
             }
         };
 
-        let data: any = await connection.restRequest(config);
+        const data: any = await connection.restRequest(config);
 
         return data.items.filter((item: any) => item.parentId == directoryId);
     }
@@ -37,7 +37,7 @@ export class Query extends Metadata {
         }
         if (mcUri.id == 0) return [];
 
-        let config: AxiosRequestConfig = {
+        const config: AxiosRequestConfig = {
             method: 'get',
             url: `automation/v1/queries/category/${mcUri.id}`,
             params: {
@@ -47,31 +47,31 @@ export class Query extends Metadata {
             }
         };
         this;
-        let data: any = await connection.restRequest(config);
-        //return data.items as Array<any>
+        const data: any = await connection.restRequest(config);
+        // return data.items as Array<any>
 
         return (data.items as Array<any>).map(a => new Content(a, mcUri.globalPath));
     }
 
     async updateMetadata(connection: Auth, metadata: any): Promise<any> {
-        let config: AxiosRequestConfig = {
+        const config: AxiosRequestConfig = {
             method: 'patch',
             url: `automation/v1/queries/${metadata.queryDefinitionId}`,
             data: metadata
         };
 
-        let data: any = await connection.restRequest(config);
+        const data: any = await connection.restRequest(config);
 
         return data;
     }
 
     async getMetadataById(connection: Auth, metadataId: string): Promise<any> {
-        let config: AxiosRequestConfig = {
+        const config: AxiosRequestConfig = {
             method: 'get',
             url: `automation/v1/queries/${metadataId}`
         };
 
-        let data: any = await connection.restRequest(config);
+        const data: any = await connection.restRequest(config);
         return data;
         // todo:  return new MCAsset(data);
     }
@@ -146,7 +146,7 @@ export class Query extends Metadata {
     }
 
     async readDirectories(uri: vscode.Uri, connection: Auth) {
-        let mcUri = new MCUri(uri.authority, uri.path);
+        const mcUri = new MCUri(uri.authority, uri.path);
 
         if (getEntityType(mcUri) != vscode.FileType.Directory) {
             throw vscode.FileSystemError.FileNotFound();
@@ -155,16 +155,16 @@ export class Query extends Metadata {
         const result: [string, vscode.FileType][] = [];
 
 
-        let directoryId = await this.getDirectoryIdByPath(connection, mcUri);
+        const directoryId = await this.getDirectoryIdByPath(connection, mcUri);
         mcUri.setId(directoryId);
 
-        let promises = await Promise.all([
+        const promises = await Promise.all([
             this.getSubdirectoriesByDirectoryId(connection, directoryId),
             this.getMetadataByDirectoryId(connection, mcUri),
         ]);
 
-        let subsfolders = promises[0] as Array<any>;
-        let metadata = promises[1] as Array<any>;
+        const subsfolders = promises[0] as Array<any>;
+        const metadata = promises[1] as Array<any>;
         // add folders to current directory
         subsfolders.forEach(subfolder => {
             result.push([subfolder.name as string, vscode.FileType.Directory]);
@@ -174,7 +174,7 @@ export class Query extends Metadata {
             const name = item.name;
             const path = mcUri.globalPath + (mcUri.globalPath.endsWith("/") ? "" : "/") + name;
             this.filesCache.set(path, item);
-            //save json file with type in name for future use
+            // save json file with type in name for future use
             result.push([item.name + '.query-meta.json', vscode.FileType.File]);
             // save sql
             result.push([item.name + '.sql', vscode.FileType.File]);
@@ -186,7 +186,7 @@ export class Query extends Metadata {
         // const metadata = this.filesCache.get(mcUri.globalPath);
         const key = mcUri.globalPath.replace('.query-meta.json', '').replace('.sql', '');
         const file = this.filesCache.get(key);
-        let str = new TextDecoder("utf-8").decode(content);
+        const str = new TextDecoder("utf-8").decode(content);
         let item;
         if (mcUri.globalPath.endsWith('query-meta.json')) {
             item = JSON.parse(str);
@@ -200,7 +200,7 @@ export class Query extends Metadata {
         if (file.name != item.name) {
             const newPath = mcUri.globalPath.replace(file.name, item.name);
             this.filesCache.delete(key);
-            //reset name need to update in file system
+            // reset name need to update in file system
             return newPath;
         } else {
             this.filesCache.set(key, new Content(item, file.path));
@@ -208,8 +208,8 @@ export class Query extends Metadata {
         return;
 
 
-        //const savedAsset = await this.getMetadataById(connection, metadata.id);
-        //throw vscode.FileSystemError.FileNotFound();
+        // const savedAsset = await this.getMetadataById(connection, metadata.id);
+        // throw vscode.FileSystemError.FileNotFound();
 
 
     }
@@ -225,10 +225,10 @@ export class Query extends Metadata {
 
 
 export class Content {
-    //public readonly path: string;
+    // public readonly path: string;
     private content: string;
-    private isChanged: boolean = false;
-    public isJsonContent: boolean = false;
+    private isChanged = false;
+    public isJsonContent = false;
     public id: string;
     public name: string;
     public sql: string;
@@ -240,7 +240,7 @@ export class Content {
         this.content = item;
         this.sql = item.queryText;
         this.path = path;
-        //this.isJsonContent = isJsonContent;
+        // this.isJsonContent = isJsonContent;
     }
 
     public hasChanges(): boolean {
