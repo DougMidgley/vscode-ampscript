@@ -76,15 +76,6 @@ export class Query extends Metadata {
         // todo:  return new MCAsset(data);
     }
 
-    // readMetadataAsDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-    //     const mcUri = new MCUri(uri.authority, uri.path);
-    //     const metadata = this.filesCache.get(mcUri.globalPath);
-    //     if (metadata && metadata.hasParts()) {//&& metadata instanceof any
-    //         return (metadata as any).parts.map((part: any) => [part.name, vscode.FileType.File]);
-    //     }
-    //     return [];
-    // }
-
     async runQuery(mcUri: MCUri, connection: Auth) {
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -101,8 +92,7 @@ export class Query extends Metadata {
                     method: 'post',
                     url: `automation/v1/queries/${file.id}/actions/start`
                 };
-
-                const data: any = await connection.restRequest(config);
+                await connection.restRequest(config);
             }
             let retries = 20;
             let complete = false;
@@ -133,7 +123,6 @@ export class Query extends Metadata {
 
             return true;
         });
-
     }
 
     async checkRunning(id: string, connection: Auth) {
@@ -157,14 +146,6 @@ export class Query extends Metadata {
     }
 
     async readDirectories(uri: vscode.Uri, connection: Auth) {
-        //checking if this is a file or Folder
-
-        // let assetPartFiles = this.readMetadataAsDirectory(uri);
-
-        // if (assetPartFiles.length > 0) {
-        //     return assetPartFiles;
-        // }
-        // else its a folder
         let mcUri = new MCUri(uri.authority, uri.path);
 
         if (getEntityType(mcUri) != vscode.FileType.Directory) {

@@ -30,9 +30,9 @@ export class Connections {
         );
     }
     get(account_id: string) {
-        if (isNullOrUndefined(account_id.match(/^\d+$/g))) {
+        if ((account_id.match(/^\d+$/g) === undefined || account_id.match(/^\d+$/g) === null)) {
             throw new Error("Incorrect MID");
-        } else if (isNullOrUndefined(this.connections.get(account_id))) {
+        } else if (this.connections.get(account_id) === null) {
             throw new Error("Connection config has not been set");
         } else {
             return this.connections.get(account_id);

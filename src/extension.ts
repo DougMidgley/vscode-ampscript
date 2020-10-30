@@ -5,7 +5,6 @@ import * as path from 'path';
 import { Connections } from './libs/core';
 import { MCFS } from './fileSystemProvider';
 import { Utils, ConnectionManagerPanel, ConnectionManagerMessage, Connection } from './utils';
-import { isNullOrUndefined } from 'util';
 
 let isConfigUpdated = true;
 let isConnectionManagerOpened = false;
@@ -15,9 +14,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	try {
 
-		//let connections = getConfig('connections');
 		const connections = new Connections();
-		connections.setConnections(getConfig('connections'));
+		const c = getConfig('connections');
+		if (Array.isArray(c)) {
+
+			connections.setConnections(getConfig('connections'));
+		}
+
 		const mcfs = new MCFS(connections);
 
 		const panel = new ConnectionManagerPanel();
@@ -43,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 					case 'UPDATE':
 						connections.setConnections(message.content);
-						updateConfig('connections', connections);
+						updateConfig('connections', message.content);
 						vscode.window.showInformationMessage('Connections saved. Press "Connect" and then open File Explorer');
 						break;
 				}
@@ -59,10 +62,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			openConnectionManager();
 		}));
 
-		context.subscriptions.push(vscode.commands.registerCommand('mcfs.runquery', _ => {
-			const uri = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document.uri : "";
+		context.subscriptions.push(vscode.commands.registerCommand('mcfs.runquery', (uri: vscode.Uri) => {
+			//const uri = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document.uri : "";
 
-			if (uri && uri.toString().endsWith('.sql')) {
+			if (uri && uri.path.endsWith('.sql')) {
 				mcfs.runQuery(uri);
 			} else {
 				throw new Error('No current File open OR unsupported filetype')
@@ -108,13 +111,12 @@ function getConfig(section: string): any {
 function updateConfig(section: string, value: any) {
 	const config = vscode.workspace.getConfiguration('mcfs');
 
-	let updateInterval = setInterval(_ => {
+	let updateInterval = setInterval(async () => {
 		if (isConfigUpdated) {
 			isConfigUpdated = false;
-			config?.update(section, value, true).then(_ => {
-				isConfigUpdated = true;
-				clearInterval(updateInterval);
-			});
+			await config?.update(section, value, true);
+			isConfigUpdated = true;
+			clearInterval(updateInterval);
 		}
 	}, 5);
 }
